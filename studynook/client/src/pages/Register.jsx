@@ -16,6 +16,22 @@ const Register = () => {
 
   const [loading, setLoading] = useState(false);
 
+  const validatePassword = (password) => {
+    if (password.length < 6) {
+      return "Password must be at least 6 characters long.";
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      return "Password must include at least one uppercase letter.";
+    }
+
+    if (!/[a-z]/.test(password)) {
+      return "Password must include at least one lowercase letter.";
+    }
+
+    return "";
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -28,8 +44,20 @@ const Register = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.email || !formData.password) {
-      toast.error("Name, email, and password are required.");
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.photoURL ||
+      !formData.password
+    ) {
+      toast.error("Name, email, photo URL, and password are required.");
+      return;
+    }
+
+    const passwordError = validatePassword(formData.password);
+
+    if (passwordError) {
+      toast.error(passwordError);
       return;
     }
 
@@ -37,16 +65,14 @@ const Register = () => {
       setLoading(true);
 
       const data = await registerUser({
-        name: formData.name,
-        email: formData.email,
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        photoURL: formData.photoURL.trim(),
         password: formData.password,
-        photoURL:
-          formData.photoURL ||
-          "https://i.ibb.co/4pDNDk1/avatar.png",
       });
 
       if (data?.success) {
-        toast.success(data.message || "Registration successful.");
+        toast.success(data.message || "Registration successful! Please login.");
         navigate("/login");
       } else {
         toast.error(data?.message || "Registration failed.");
@@ -56,6 +82,10 @@ const Register = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleRegister = () => {
+    toast.error("Google registration will be connected in the next step.");
   };
 
   return (
@@ -74,9 +104,10 @@ const Register = () => {
             <input
               type="text"
               name="name"
+              required
               value={formData.name}
               onChange={handleChange}
-              placeholder="Test User"
+              placeholder="Arafat"
               className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
             />
           </div>
@@ -88,9 +119,10 @@ const Register = () => {
             <input
               type="email"
               name="email"
+              required
               value={formData.email}
               onChange={handleChange}
-              placeholder="test@example.com"
+              placeholder="arafat@example.com"
               className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
             />
           </div>
@@ -102,11 +134,15 @@ const Register = () => {
             <input
               type="text"
               name="photoURL"
+              required
               value={formData.photoURL}
               onChange={handleChange}
-              placeholder="Optional photo URL"
+              placeholder="https://example.com/photo.jpg"
               className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
             />
+            <p className="mt-2 text-sm text-slate-500">
+              Use a direct image URL from the internet.
+            </p>
           </div>
 
           <div>
@@ -116,11 +152,15 @@ const Register = () => {
             <input
               type="password"
               name="password"
+              required
               value={formData.password}
               onChange={handleChange}
               placeholder="Test123"
               className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
             />
+            <p className="mt-2 text-sm text-slate-500">
+              Password must include 6 characters, one uppercase, and one lowercase letter.
+            </p>
           </div>
 
           <button
@@ -131,6 +171,14 @@ const Register = () => {
             {loading ? "Creating account..." : "Register"}
           </button>
         </form>
+
+        <button
+          type="button"
+          onClick={handleGoogleRegister}
+          className="mt-4 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Continue with Google
+        </button>
 
         <p className="mt-6 text-center text-slate-600">
           Already have an account?{" "}

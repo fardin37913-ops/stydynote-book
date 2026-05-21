@@ -3,6 +3,15 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import api from "../api/api";
 
+const amenityOptions = [
+  "Whiteboard",
+  "Projector",
+  "Wi-Fi",
+  "Power Outlets",
+  "Quiet Zone",
+  "Air Conditioning",
+];
+
 const AddRoom = () => {
   const navigate = useNavigate();
 
@@ -13,7 +22,7 @@ const AddRoom = () => {
     floor: "",
     capacity: "",
     hourlyRate: "",
-    amenities: "",
+    amenities: [],
   });
 
   const [loading, setLoading] = useState(false);
@@ -25,6 +34,19 @@ const AddRoom = () => {
       ...prev,
       [name]: value,
     }));
+  };
+
+  const handleAmenityChange = (amenity) => {
+    setFormData((prev) => {
+      const alreadySelected = prev.amenities.includes(amenity);
+
+      return {
+        ...prev,
+        amenities: alreadySelected
+          ? prev.amenities.filter((item) => item !== amenity)
+          : [...prev.amenities, amenity],
+      };
+    });
   };
 
   const handleAddRoom = async (e) => {
@@ -42,27 +64,29 @@ const AddRoom = () => {
       return;
     }
 
+    if (formData.amenities.length === 0) {
+      toast.error("Please select at least one amenity.");
+      return;
+    }
+
     try {
       setLoading(true);
 
       const roomData = {
-        roomName: formData.roomName,
-        description: formData.description,
-        image: formData.image,
-        floor: formData.floor,
+        roomName: formData.roomName.trim(),
+        description: formData.description.trim(),
+        image: formData.image.trim(),
+        floor: formData.floor.trim(),
         capacity: Number(formData.capacity),
         hourlyRate: Number(formData.hourlyRate),
-        amenities: formData.amenities
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean),
+        amenities: formData.amenities,
       };
 
       const res = await api.post("/api/rooms", roomData);
 
       if (res.data?.success) {
         toast.success(res.data.message || "Room added successfully.");
-        navigate("/rooms");
+        navigate("/my-listings");
       } else {
         toast.error(res.data?.message || "Failed to add room.");
       }
@@ -89,6 +113,7 @@ const AddRoom = () => {
             <input
               type="text"
               name="roomName"
+              required
               value={formData.roomName}
               onChange={handleChange}
               placeholder="Quiet Focus Room"
@@ -102,6 +127,7 @@ const AddRoom = () => {
             </label>
             <textarea
               name="description"
+              required
               value={formData.description}
               onChange={handleChange}
               placeholder="A peaceful private study room designed for deep focus."
@@ -117,9 +143,10 @@ const AddRoom = () => {
             <input
               type="text"
               name="image"
+              required
               value={formData.image}
               onChange={handleChange}
-              placeholder="https://images.unsplash.com/photo-1521587760476-6c12a4b040da"
+              placeholder="https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=1200&q=80"
               className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
             />
           </div>
@@ -132,6 +159,7 @@ const AddRoom = () => {
               <input
                 type="text"
                 name="floor"
+                required
                 value={formData.floor}
                 onChange={handleChange}
                 placeholder="3rd Floor"
@@ -146,6 +174,8 @@ const AddRoom = () => {
               <input
                 type="number"
                 name="capacity"
+                required
+                min="1"
                 value={formData.capacity}
                 onChange={handleChange}
                 placeholder="4"
@@ -160,6 +190,8 @@ const AddRoom = () => {
               <input
                 type="number"
                 name="hourlyRate"
+                required
+                min="1"
                 value={formData.hourlyRate}
                 onChange={handleChange}
                 placeholder="5"
@@ -169,20 +201,26 @@ const AddRoom = () => {
           </div>
 
           <div>
-            <label className="block mb-2 font-medium text-slate-700">
+            <label className="block mb-3 font-medium text-slate-700">
               Amenities
             </label>
-            <input
-              type="text"
-              name="amenities"
-              value={formData.amenities}
-              onChange={handleChange}
-              placeholder="Whiteboard, Wi-Fi, Power Outlets, Quiet Zone"
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
-            />
-            <p className="mt-2 text-sm text-slate-500">
-              Separate amenities with comma.
-            </p>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {amenityOptions.map((amenity) => (
+                <label
+                  key={amenity}
+                  className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 cursor-pointer hover:border-blue-400"
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.amenities.includes(amenity)}
+                    onChange={() => handleAmenityChange(amenity)}
+                    className="h-4 w-4"
+                  />
+                  <span className="font-medium text-slate-700">{amenity}</span>
+                </label>
+              ))}
+            </div>
           </div>
 
           <button

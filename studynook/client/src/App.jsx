@@ -3,6 +3,7 @@ import MainLayout from "./layouts/MainLayout";
 import PrivateRoute from "./components/PrivateRoute";
 import Home from "./pages/Home";
 import Rooms from "./pages/Rooms";
+import RoomDetails from "./pages/RoomDetails";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import AddRoom from "./pages/AddRoom";
@@ -23,6 +24,10 @@ const router = createBrowserRouter([
       {
         path: "rooms",
         element: <Rooms />,
+      },
+      {
+        path: "rooms/:id",
+        element: <RoomDetails />,
       },
       {
         path: "login",

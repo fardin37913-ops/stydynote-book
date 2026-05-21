@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "../api/api";
 
 const Rooms = () => {
@@ -51,14 +52,17 @@ const Rooms = () => {
     <section className="max-w-7xl mx-auto px-4 py-12">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-slate-950">Available Rooms</h1>
+          <h1 className="text-4xl font-bold text-slate-950">
+            Available Rooms
+          </h1>
           <p className="mt-3 text-slate-600">
             Browse available study rooms and book your preferred time slot.
           </p>
         </div>
 
         <p className="text-slate-600">
-          Total Rooms: <span className="font-semibold text-slate-950">{rooms.length}</span>
+          Total Rooms:{" "}
+          <span className="font-semibold text-slate-950">{rooms.length}</span>
         </p>
       </div>
 
@@ -97,7 +101,9 @@ const Rooms = () => {
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                   <div className="rounded-xl bg-slate-50 p-3">
                     <p className="text-slate-500">Floor</p>
-                    <p className="font-semibold text-slate-950">{room.floor}</p>
+                    <p className="font-semibold text-slate-950">
+                      {room.floor}
+                    </p>
                   </div>
 
                   <div className="rounded-xl bg-slate-50 p-3">
@@ -119,9 +125,12 @@ const Rooms = () => {
                   ))}
                 </div>
 
-                <button className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700">
+                <Link
+                  to={`/rooms/${room._id}`}
+                  className="mt-5 flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700"
+                >
                   View Details
-                </button>
+                </Link>
               </div>
             </div>
           ))}
