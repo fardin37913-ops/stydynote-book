@@ -1,29 +1,42 @@
 const { ObjectId } = require("mongodb");
 
-const isValidObjectId = (id) => ObjectId.isValid(id);
-
-const parseTimeToHour = (time) => {
-  if (!time || typeof time !== "string") return null;
-
-  const [hourText, minuteText] = time.split(":");
-  const hour = Number(hourText);
-  const minute = Number(minuteText);
-
-  if (Number.isNaN(hour) || Number.isNaN(minute) || minute !== 0) {
-    return null;
-  }
-
-  return hour;
+const getUserId = (req) => {
+  return req.user?.id || req.user?._id?.toString();
 };
 
-const isTodayOrFutureDate = (date) => {
+const getTodayDateString = () => {
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
 
-  const selectedDate = new Date(`${date}T00:00:00`);
-  selectedDate.setHours(0, 0, 0, 0);
+  return `${year}-${month}-${day}`;
+};
 
-  return selectedDate >= today;
+const isValidHourlySlot = (time) => {
+  if (!time || typeof time !== "string") return false;
+
+  const allowedSlots = [
+    "08:00",
+    "09:00",
+    "10:00",
+    "11:00",
+    "12:00",
+    "13:00",
+    "14:00",
+    "15:00",
+    "16:00",
+    "17:00",
+    "18:00",
+    "19:00",
+    "20:00",
+  ];
+
+  return allowedSlots.includes(time);
+};
+
+const getHour = (time) => {
+  return Number(time.split(":")[0]);
 };
 
 const bookRoom = async (req, res) => {
@@ -33,57 +46,53 @@ const bookRoom = async (req, res) => {
     const bookingsCollection = db.collection("bookings");
     const usersCollection = db.collection("users");
 
+    const userId = getUserId(req);
     const { roomId, date, startTime, endTime, specialNote } = req.body || {};
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized access. Please login first.",
+      });
+    }
 
     if (!roomId || !date || !startTime || !endTime) {
       return res.status(400).json({
         success: false,
-        message: "Room ID, date, start time, and end time are required.",
+        message: "Room, date, start time, and end time are required.",
       });
     }
 
-    if (!isValidObjectId(roomId)) {
+    if (!ObjectId.isValid(roomId)) {
       return res.status(400).json({
         success: false,
         message: "Invalid room ID.",
       });
     }
 
-    if (!isTodayOrFutureDate(date)) {
+    const today = getTodayDateString();
+
+    if (date < today) {
       return res.status(400).json({
         success: false,
         message: "Booking date must be today or a future date.",
       });
     }
 
-    const startHour = parseTimeToHour(startTime);
-    const endHour = parseTimeToHour(endTime);
-
-    if (startHour === null || endHour === null) {
+    if (!isValidHourlySlot(startTime) || !isValidHourlySlot(endTime)) {
       return res.status(400).json({
         success: false,
         message: "Start time and end time must be valid hourly slots.",
       });
     }
 
-    if (startHour < 8 || startHour > 20) {
-      return res.status(400).json({
-        success: false,
-        message: "Start time must be between 08:00 and 20:00.",
-      });
-    }
+    const startHour = getHour(startTime);
+    const endHour = getHour(endTime);
 
     if (endHour <= startHour) {
       return res.status(400).json({
         success: false,
         message: "End time must be after start time.",
-      });
-    }
-
-    if (endHour > 21) {
-      return res.status(400).json({
-        success: false,
-        message: "End time cannot be after 21:00.",
       });
     }
 
@@ -102,8 +111,28 @@ const bookRoom = async (req, res) => {
       roomId: new ObjectId(roomId),
       date,
       status: "confirmed",
-      startHour: { $lt: endHour },
-      endHour: { $gt: startHour },
+      $or: [
+        {
+          startHour: {
+            $gte: startHour,
+            $lt: endHour,
+          },
+        },
+        {
+          endHour: {
+            $gt: startHour,
+            $lte: endHour,
+          },
+        },
+        {
+          startHour: {
+            $lte: startHour,
+          },
+          endHour: {
+            $gte: endHour,
+          },
+        },
+      ],
     });
 
     if (conflictBooking) {
@@ -118,7 +147,7 @@ const bookRoom = async (req, res) => {
 
     const newBooking = {
       roomId: new ObjectId(roomId),
-      userId: new ObjectId(req.user.id),
+      userId: new ObjectId(userId),
       date,
       startTime,
       endTime,
@@ -126,7 +155,7 @@ const bookRoom = async (req, res) => {
       endHour,
       totalHours,
       totalCost,
-      specialNote: specialNote ? specialNote.trim() : "",
+      specialNote: specialNote || "",
       status: "confirmed",
       roomSnapshot: {
         roomName: room.roomName,
@@ -142,7 +171,7 @@ const bookRoom = async (req, res) => {
     const result = await bookingsCollection.insertOne(newBooking);
 
     await usersCollection.updateOne(
-      { _id: new ObjectId(req.user.id) },
+      { _id: new ObjectId(userId) },
       {
         $push: {
           bookings: result.insertedId,
@@ -163,10 +192,9 @@ const bookRoom = async (req, res) => {
       success: true,
       message: "Room booked successfully!",
       bookingId: result.insertedId,
-      totalCost,
     });
   } catch (error) {
-    console.error("Book room error:", error.message);
+    console.error("Book room error:", error);
 
     return res.status(500).json({
       success: false,
@@ -180,33 +208,20 @@ const getMyBookings = async (req, res) => {
     const db = req.app.locals.db;
     const bookingsCollection = db.collection("bookings");
 
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized access. Please login first.",
+      });
+    }
+
     const bookings = await bookingsCollection
-      .aggregate([
-        {
-          $match: {
-            userId: new ObjectId(req.user.id),
-          },
-        },
-        {
-          $lookup: {
-            from: "rooms",
-            localField: "roomId",
-            foreignField: "_id",
-            as: "room",
-          },
-        },
-        {
-          $unwind: {
-            path: "$room",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        {
-          $sort: {
-            createdAt: -1,
-          },
-        },
-      ])
+      .find({
+        userId: new ObjectId(userId),
+      })
+      .sort({ createdAt: -1 })
       .toArray();
 
     return res.status(200).json({
@@ -215,7 +230,7 @@ const getMyBookings = async (req, res) => {
       bookings,
     });
   } catch (error) {
-    console.error("Get my bookings error:", error.message);
+    console.error("Get my bookings error:", error);
 
     return res.status(500).json({
       success: false,
@@ -231,9 +246,17 @@ const cancelBooking = async (req, res) => {
     const usersCollection = db.collection("users");
     const roomsCollection = db.collection("rooms");
 
+    const userId = getUserId(req);
     const { id } = req.params;
 
-    if (!isValidObjectId(id)) {
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized access. Please login first.",
+      });
+    }
+
+    if (!ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
         message: "Invalid booking ID.",
@@ -251,10 +274,10 @@ const cancelBooking = async (req, res) => {
       });
     }
 
-    if (booking.userId.toString() !== req.user.id) {
+    if (booking.userId.toString() !== userId) {
       return res.status(403).json({
         success: false,
-        message: "Forbidden. You can cancel only your own booking.",
+        message: "You are not allowed to cancel this booking.",
       });
     }
 
@@ -265,7 +288,9 @@ const cancelBooking = async (req, res) => {
       });
     }
 
-    if (!isTodayOrFutureDate(booking.date)) {
+    const today = getTodayDateString();
+
+    if (booking.date < today) {
       return res.status(400).json({
         success: false,
         message: "Past bookings cannot be cancelled.",
@@ -283,7 +308,7 @@ const cancelBooking = async (req, res) => {
     );
 
     await usersCollection.updateOne(
-      { _id: new ObjectId(req.user.id) },
+      { _id: new ObjectId(userId) },
       {
         $pull: {
           bookings: new ObjectId(id),
@@ -292,7 +317,12 @@ const cancelBooking = async (req, res) => {
     );
 
     await roomsCollection.updateOne(
-      { _id: booking.roomId },
+      {
+        _id: booking.roomId,
+        bookingCount: {
+          $gt: 0,
+        },
+      },
       {
         $inc: {
           bookingCount: -1,
@@ -305,7 +335,7 @@ const cancelBooking = async (req, res) => {
       message: "Booking cancelled.",
     });
   } catch (error) {
-    console.error("Cancel booking error:", error.message);
+    console.error("Cancel booking error:", error);
 
     return res.status(500).json({
       success: false,

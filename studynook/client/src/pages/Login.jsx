@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { loginUser } = useAuth();
+  const { loginUser, googleLogin } = useAuth();
 
   const [formData, setFormData] = useState({
     email: "",
@@ -13,6 +13,7 @@ const Login = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -34,7 +35,10 @@ const Login = () => {
     try {
       setLoading(true);
 
-      const data = await loginUser(formData);
+      const data = await loginUser({
+        email: formData.email.trim(),
+        password: formData.password,
+      });
 
       if (data?.success) {
         toast.success(data.message || "Login successful.");
@@ -49,12 +53,37 @@ const Login = () => {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    try {
+      setGoogleLoading(true);
+
+      const data = await googleLogin();
+
+      if (data?.success) {
+        toast.success(data.message || "Google login successful.");
+        navigate("/");
+      } else {
+        toast.error(data?.message || "Google login failed.");
+      }
+    } catch (error) {
+      console.error("Google login error:", error);
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Google login failed."
+      );
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   return (
     <section className="max-w-md mx-auto px-4 py-16">
       <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
         <h1 className="text-3xl font-bold text-slate-950">Login</h1>
+
         <p className="mt-2 text-slate-600">
-          Login to manage your rooms and bookings.
+          Login to your StudyNook account.
         </p>
 
         <form onSubmit={handleLogin} className="mt-8 space-y-5">
@@ -62,12 +91,14 @@ const Login = () => {
             <label className="block mb-2 font-medium text-slate-700">
               Email
             </label>
+
             <input
               type="email"
               name="email"
+              required
               value={formData.email}
               onChange={handleChange}
-              placeholder="test@example.com"
+              placeholder="arafat@example.com"
               className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
             />
           </div>
@@ -76,9 +107,11 @@ const Login = () => {
             <label className="block mb-2 font-medium text-slate-700">
               Password
             </label>
+
             <input
               type="password"
               name="password"
+              required
               value={formData.password}
               onChange={handleChange}
               placeholder="Test123"
@@ -94,6 +127,21 @@ const Login = () => {
             {loading ? "Logging in..." : "Login"}
           </button>
         </form>
+
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-slate-200"></div>
+          <span className="text-sm text-slate-500">OR</span>
+          <div className="h-px flex-1 bg-slate-200"></div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          disabled={googleLoading}
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+        >
+          {googleLoading ? "Connecting..." : "Continue with Google"}
+        </button>
 
         <p className="mt-6 text-center text-slate-600">
           Do not have an account?{" "}

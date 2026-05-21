@@ -1,21 +1,21 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import PrivateRoute from "./components/PrivateRoute";
+
 import Home from "./pages/Home";
 import Rooms from "./pages/Rooms";
 import RoomDetails from "./pages/RoomDetails";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
 import AddRoom from "./pages/AddRoom";
 import MyListings from "./pages/MyListings";
 import MyBookings from "./pages/MyBookings";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 
 const router = createBrowserRouter([
   {
     path: "/",
     element: <MainLayout />,
-    errorElement: <NotFound />,
     children: [
       {
         index: true,
@@ -28,14 +28,6 @@ const router = createBrowserRouter([
       {
         path: "rooms/:id",
         element: <RoomDetails />,
-      },
-      {
-        path: "login",
-        element: <Login />,
-      },
-      {
-        path: "register",
-        element: <Register />,
       },
       {
         path: "add-room",
@@ -60,6 +52,18 @@ const router = createBrowserRouter([
             <MyBookings />
           </PrivateRoute>
         ),
+      },
+      {
+        path: "login",
+        element: <Login />,
+      },
+      {
+        path: "register",
+        element: <Register />,
+      },
+      {
+        path: "*",
+        element: <NotFound />,
       },
     ],
   },

@@ -1,13 +1,25 @@
+const { ObjectId } = require("mongodb");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { ObjectId } = require("mongodb");
-const getCookieOptions = require("../utils/cookieOptions");
+
+const getCookieOptions = () => {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  };
+};
 
 const createToken = (user) => {
   return jwt.sign(
     {
-      userId: user._id.toString(),
+      id: user._id.toString(),
       email: user.email,
+      name: user.name,
+      photoURL: user.photoURL,
     },
     process.env.JWT_SECRET,
     {
@@ -16,19 +28,11 @@ const createToken = (user) => {
   );
 };
 
-const sanitizeUser = (user) => {
+const removePassword = (user) => {
   if (!user) return null;
 
   const { password, ...safeUser } = user;
   return safeUser;
-};
-
-const validatePassword = (password) => {
-  const minLength = password.length >= 6;
-  const hasUppercase = /[A-Z]/.test(password);
-  const hasLowercase = /[a-z]/.test(password);
-
-  return minLength && hasUppercase && hasLowercase;
 };
 
 const registerUser = async (req, res) => {
@@ -36,7 +40,7 @@ const registerUser = async (req, res) => {
     const db = req.app.locals.db;
     const usersCollection = db.collection("users");
 
-    const { name, email, photoURL, password } = req.body;
+    const { name, email, photoURL, password } = req.body || {};
 
     if (!name || !email || !photoURL || !password) {
       return res.status(400).json({
@@ -45,11 +49,24 @@ const registerUser = async (req, res) => {
       });
     }
 
-    if (!validatePassword(password)) {
+    if (password.length < 6) {
       return res.status(400).json({
         success: false,
-        message:
-          "Password must be at least 6 characters and include uppercase and lowercase letters.",
+        message: "Password must be at least 6 characters long.",
+      });
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must include at least one uppercase letter.",
+      });
+    }
+
+    if (!/[a-z]/.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must include at least one lowercase letter.",
       });
     }
 
@@ -83,11 +100,11 @@ const registerUser = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Registration successful! Please login.",
+      message: "Registration successful. Please login.",
       userId: result.insertedId,
     });
   } catch (error) {
-    console.error("Register error:", error.message);
+    console.error("Register error:", error);
 
     return res.status(500).json({
       success: false,
@@ -101,7 +118,7 @@ const loginUser = async (req, res) => {
     const db = req.app.locals.db;
     const usersCollection = db.collection("users");
 
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
 
     if (!email || !password) {
       return res.status(400).json({
@@ -110,10 +127,8 @@ const loginUser = async (req, res) => {
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
-
     const user = await usersCollection.findOne({
-      email: normalizedEmail,
+      email: email.toLowerCase().trim(),
     });
 
     if (!user || !user.password) {
@@ -123,9 +138,9 @@ const loginUser = async (req, res) => {
       });
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordMatched = await bcrypt.compare(password, user.password);
 
-    if (!isPasswordValid) {
+    if (!isPasswordMatched) {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password.",
@@ -139,10 +154,10 @@ const loginUser = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Login successful.",
-      user: sanitizeUser(user),
+      user: removePassword(user),
     });
   } catch (error) {
-    console.error("Login error:", error.message);
+    console.error("Login error:", error);
 
     return res.status(500).json({
       success: false,
@@ -151,17 +166,17 @@ const loginUser = async (req, res) => {
   }
 };
 
-const googleAuth = async (req, res) => {
+const googleLogin = async (req, res) => {
   try {
     const db = req.app.locals.db;
     const usersCollection = db.collection("users");
 
-    const { name, email, photoURL } = req.body;
+    const { name, email, photoURL } = req.body || {};
 
-    if (!name || !email || !photoURL) {
+    if (!email) {
       return res.status(400).json({
         success: false,
-        message: "Name, email, and photo URL are required.",
+        message: "Google email is required.",
       });
     }
 
@@ -173,9 +188,9 @@ const googleAuth = async (req, res) => {
 
     if (!user) {
       const newUser = {
-        name: name.trim(),
+        name: name || "Google User",
         email: normalizedEmail,
-        photoURL: photoURL.trim(),
+        photoURL: photoURL || "https://i.ibb.co/4pDNDk1/avatar.png",
         provider: "google",
         bookings: [],
         createdAt: new Date(),
@@ -188,6 +203,22 @@ const googleAuth = async (req, res) => {
         _id: result.insertedId,
         ...newUser,
       };
+    } else {
+      await usersCollection.updateOne(
+        { _id: user._id },
+        {
+          $set: {
+            name: name || user.name || "Google User",
+            photoURL: photoURL || user.photoURL || "https://i.ibb.co/4pDNDk1/avatar.png",
+            provider: "google",
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      user = await usersCollection.findOne({
+        _id: user._id,
+      });
     }
 
     const token = createToken(user);
@@ -196,33 +227,15 @@ const googleAuth = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Google authentication successful.",
-      user: sanitizeUser(user),
+      message: "Google login successful.",
+      user: removePassword(user),
     });
   } catch (error) {
-    console.error("Google auth error:", error.message);
+    console.error("Google login error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Something went wrong during Google authentication.",
-    });
-  }
-};
-
-const logoutUser = async (req, res) => {
-  try {
-    res.clearCookie("token", getCookieOptions());
-
-    return res.status(200).json({
-      success: true,
-      message: "Logout successful.",
-    });
-  } catch (error) {
-    console.error("Logout error:", error.message);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong during logout.",
+      message: "Something went wrong during Google login.",
     });
   }
 };
@@ -232,23 +245,32 @@ const getCurrentUser = async (req, res) => {
     const db = req.app.locals.db;
     const usersCollection = db.collection("users");
 
+    const userId = req.user?.id;
+
+    if (!userId || !ObjectId.isValid(userId)) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized access.",
+      });
+    }
+
     const user = await usersCollection.findOne({
-      _id: new ObjectId(req.user.id),
+      _id: new ObjectId(userId),
     });
 
     if (!user) {
-      return res.status(404).json({
+      return res.status(401).json({
         success: false,
-        message: "User not found.",
+        message: "User not found. Please logout and login again.",
       });
     }
 
     return res.status(200).json({
       success: true,
-      user: sanitizeUser(user),
+      user: removePassword(user),
     });
   } catch (error) {
-    console.error("Current user error:", error.message);
+    console.error("Get current user error:", error);
 
     return res.status(500).json({
       success: false,
@@ -257,10 +279,34 @@ const getCurrentUser = async (req, res) => {
   }
 };
 
+const logoutUser = async (req, res) => {
+  try {
+    const isProduction = process.env.NODE_ENV === "production";
+
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Logout successful.",
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong during logout.",
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
-  googleAuth,
-  logoutUser,
+  googleLogin,
   getCurrentUser,
+  logoutUser,
 };

@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 
 const Register = () => {
   const navigate = useNavigate();
-  const { registerUser } = useAuth();
+  const { registerUser, googleLogin } = useAuth();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -15,6 +15,7 @@ const Register = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const validatePassword = (password) => {
     if (password.length < 6) {
@@ -72,7 +73,7 @@ const Register = () => {
       });
 
       if (data?.success) {
-        toast.success(data.message || "Registration successful! Please login.");
+        toast.success(data.message || "Registration successful. Please login.");
         navigate("/login");
       } else {
         toast.error(data?.message || "Registration failed.");
@@ -84,14 +85,35 @@ const Register = () => {
     }
   };
 
-  const handleGoogleRegister = () => {
-    toast.error("Google registration will be connected in the next step.");
+  const handleGoogleRegister = async () => {
+    try {
+      setGoogleLoading(true);
+
+      const data = await googleLogin();
+
+      if (data?.success) {
+        toast.success(data.message || "Google registration successful.");
+        navigate("/");
+      } else {
+        toast.error(data?.message || "Google registration failed.");
+      }
+    } catch (error) {
+      console.error("Google register error:", error);
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Google registration failed."
+      );
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   return (
     <section className="max-w-md mx-auto px-4 py-16">
       <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
         <h1 className="text-3xl font-bold text-slate-950">Register</h1>
+
         <p className="mt-2 text-slate-600">
           Create your StudyNook account.
         </p>
@@ -101,6 +123,7 @@ const Register = () => {
             <label className="block mb-2 font-medium text-slate-700">
               Name
             </label>
+
             <input
               type="text"
               name="name"
@@ -116,6 +139,7 @@ const Register = () => {
             <label className="block mb-2 font-medium text-slate-700">
               Email
             </label>
+
             <input
               type="email"
               name="email"
@@ -131,6 +155,7 @@ const Register = () => {
             <label className="block mb-2 font-medium text-slate-700">
               Photo URL
             </label>
+
             <input
               type="text"
               name="photoURL"
@@ -140,15 +165,13 @@ const Register = () => {
               placeholder="https://example.com/photo.jpg"
               className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
             />
-            <p className="mt-2 text-sm text-slate-500">
-              Use a direct image URL from the internet.
-            </p>
           </div>
 
           <div>
             <label className="block mb-2 font-medium text-slate-700">
               Password
             </label>
+
             <input
               type="password"
               name="password"
@@ -158,6 +181,7 @@ const Register = () => {
               placeholder="Test123"
               className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
             />
+
             <p className="mt-2 text-sm text-slate-500">
               Password must include 6 characters, one uppercase, and one lowercase letter.
             </p>
@@ -172,12 +196,19 @@ const Register = () => {
           </button>
         </form>
 
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-slate-200"></div>
+          <span className="text-sm text-slate-500">OR</span>
+          <div className="h-px flex-1 bg-slate-200"></div>
+        </div>
+
         <button
           type="button"
           onClick={handleGoogleRegister}
-          className="mt-4 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+          disabled={googleLoading}
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
         >
-          Continue with Google
+          {googleLoading ? "Connecting..." : "Continue with Google"}
         </button>
 
         <p className="mt-6 text-center text-slate-600">

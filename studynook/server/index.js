@@ -22,12 +22,23 @@ const allowedOrigins = [
   "http://localhost:5174",
   "http://localhost:5175",
   "http://localhost:5176",
+  "http://localhost:5177",
+  "http://localhost:5178",
+  "http://localhost:5179",
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      if (/^http:\/\/localhost:\d+$/.test(origin)) {
         return callback(null, true);
       }
 
@@ -43,9 +54,7 @@ app.use(cookieParser());
 const uri = process.env.MONGO_URI;
 
 if (!uri) {
-  console.error(
-    "MongoDB URI is missing. Please add MONGO_URI in server/.env file."
-  );
+  console.error("MongoDB URI is missing. Please add MONGO_URI in server/.env file.");
   process.exit(1);
 }
 
