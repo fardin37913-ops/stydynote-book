@@ -1,23 +1,12 @@
 {
-  "name": "stydynote-book",
+  "name": "studynook-fullstack",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "server": "npm --prefix studynook/server run dev",
+    "client": "npm --prefix studynook/client run dev",
+    "dev": "concurrently \"npm run server\" \"npm run client\""
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/fardin37913-ops/stydynote-book.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/fardin37913-ops/stydynote-book/issues"
-  },
-  "homepage": "https://github.com/fardin37913-ops/stydynote-book#readme",
   "devDependencies": {
     "concurrently": "^9.2.1"
   }

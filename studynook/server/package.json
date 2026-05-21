@@ -1,13 +1,25 @@
 {
-  "name": "studynook-fullstack",
+  "name": "studynook-server",
   "version": "1.0.0",
-  "private": true,
+  "description": "Backend server for StudyNook library study room booking application",
+  "main": "index.js",
   "scripts": {
-    "server": "npm --prefix server run dev",
-    "client": "npm --prefix client run dev",
-    "dev": "concurrently \"npm run server\" \"npm run client\""
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.19.0"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "nodemon": "^3.1.10"
   }
 }
