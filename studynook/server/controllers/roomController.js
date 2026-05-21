@@ -1,65 +1,36 @@
 const { ObjectId } = require("mongodb");
 
-const isValidObjectId = (id) => ObjectId.isValid(id);
+const roomsCollectionName = "rooms";
 
 const addRoom = async (req, res) => {
   try {
     const db = req.app.locals.db;
-    const roomsCollection = db.collection("rooms");
-    const usersCollection = db.collection("users");
+    const roomsCollection = db.collection(roomsCollectionName);
 
-    const {
-      roomName,
-      description,
-      image,
-      floor,
-      capacity,
-      hourlyRate,
-      amenities,
-    } = req.body || {};
+    const user = req.user;
+    const { roomName, description, image, floor, capacity, hourlyRate, amenities } = req.body;
 
-    if (
-      !roomName ||
-      !description ||
-      !image ||
-      !floor ||
-      !capacity ||
-      !hourlyRate ||
-      !Array.isArray(amenities) ||
-      amenities.length === 0
-    ) {
+    if (!roomName || !description || !image || !floor || !capacity || !hourlyRate) {
       return res.status(400).json({
         success: false,
-        message:
-          "Room name, description, image, floor, capacity, hourly rate, and amenities are required.",
-      });
-    }
-
-    const owner = await usersCollection.findOne({
-      _id: new ObjectId(req.user.id),
-    });
-
-    if (!owner) {
-      return res.status(404).json({
-        success: false,
-        message: "Owner user not found.",
+        message: "All required room fields are needed.",
       });
     }
 
     const newRoom = {
-      roomName: roomName.trim(),
-      description: description.trim(),
-      image: image.trim(),
-      floor: String(floor).trim(),
+      roomName,
+      description,
+      image,
+      floor,
       capacity: Number(capacity),
       hourlyRate: Number(hourlyRate),
-      amenities,
+      amenities: Array.isArray(amenities) ? amenities : [],
       bookingCount: 0,
-      ownerId: new ObjectId(req.user.id),
+      ownerId: user._id,
       owner: {
-        name: owner.name,
-        email: owner.email,
-        photoURL: owner.photoURL,
+        name: user.name,
+        email: user.email,
+        photoURL: user.photoURL,
       },
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -73,11 +44,10 @@ const addRoom = async (req, res) => {
       roomId: result.insertedId,
     });
   } catch (error) {
-    console.error("Add room error:", error.message);
-
+    console.error("Add room error:", error);
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while adding the room.",
+      message: "Something went wrong while adding room.",
     });
   }
 };
@@ -85,53 +55,10 @@ const addRoom = async (req, res) => {
 const getAllRooms = async (req, res) => {
   try {
     const db = req.app.locals.db;
-    const roomsCollection = db.collection("rooms");
-
-    const { search, amenities, minRate, maxRate, floor } = req.query;
-
-    const query = {};
-
-    if (search) {
-      query.roomName = {
-        $regex: search,
-        $options: "i",
-      };
-    }
-
-    if (amenities) {
-      const amenitiesArray = amenities
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-
-      if (amenitiesArray.length > 0) {
-        query.amenities = {
-          $in: amenitiesArray,
-        };
-      }
-    }
-
-    if (floor) {
-      query.floor = {
-        $regex: floor,
-        $options: "i",
-      };
-    }
-
-    if (minRate || maxRate) {
-      query.hourlyRate = {};
-
-      if (minRate) {
-        query.hourlyRate.$gte = Number(minRate);
-      }
-
-      if (maxRate) {
-        query.hourlyRate.$lte = Number(maxRate);
-      }
-    }
+    const roomsCollection = db.collection(roomsCollectionName);
 
     const rooms = await roomsCollection
-      .find(query)
+      .find({})
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -141,8 +68,7 @@ const getAllRooms = async (req, res) => {
       rooms,
     });
   } catch (error) {
-    console.error("Get all rooms error:", error.message);
-
+    console.error("Get rooms error:", error);
     return res.status(500).json({
       success: false,
       message: "Something went wrong while fetching rooms.",
@@ -150,15 +76,16 @@ const getAllRooms = async (req, res) => {
   }
 };
 
-const getLatestRooms = async (req, res) => {
+const getMyListings = async (req, res) => {
   try {
     const db = req.app.locals.db;
-    const roomsCollection = db.collection("rooms");
+    const roomsCollection = db.collection(roomsCollectionName);
+
+    const user = req.user;
 
     const rooms = await roomsCollection
-      .find({})
+      .find({ ownerId: user._id })
       .sort({ createdAt: -1 })
-      .limit(6)
       .toArray();
 
     return res.status(200).json({
@@ -167,11 +94,10 @@ const getLatestRooms = async (req, res) => {
       rooms,
     });
   } catch (error) {
-    console.error("Get latest rooms error:", error.message);
-
+    console.error("Get my listings error:", error);
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while fetching latest rooms.",
+      message: "Something went wrong while fetching your listings.",
     });
   }
 };
@@ -179,20 +105,18 @@ const getLatestRooms = async (req, res) => {
 const getSingleRoom = async (req, res) => {
   try {
     const db = req.app.locals.db;
-    const roomsCollection = db.collection("rooms");
+    const roomsCollection = db.collection(roomsCollectionName);
 
     const { id } = req.params;
 
-    if (!isValidObjectId(id)) {
+    if (!ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
         message: "Invalid room ID.",
       });
     }
 
-    const room = await roomsCollection.findOne({
-      _id: new ObjectId(id),
-    });
+    const room = await roomsCollection.findOne({ _id: new ObjectId(id) });
 
     if (!room) {
       return res.status(404).json({
@@ -206,117 +130,10 @@ const getSingleRoom = async (req, res) => {
       room,
     });
   } catch (error) {
-    console.error("Get single room error:", error.message);
-
+    console.error("Get single room error:", error);
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while fetching room details.",
-    });
-  }
-};
-
-const getMyListings = async (req, res) => {
-  try {
-    const db = req.app.locals.db;
-    const roomsCollection = db.collection("rooms");
-
-    const rooms = await roomsCollection
-      .find({
-        ownerId: new ObjectId(req.user.id),
-      })
-      .sort({ createdAt: -1 })
-      .toArray();
-
-    return res.status(200).json({
-      success: true,
-      count: rooms.length,
-      rooms,
-    });
-  } catch (error) {
-    console.error("Get my listings error:", error.message);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while fetching your listings.",
-    });
-  }
-};
-
-const updateRoom = async (req, res) => {
-  try {
-    const db = req.app.locals.db;
-    const roomsCollection = db.collection("rooms");
-
-    const { id } = req.params;
-
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid room ID.",
-      });
-    }
-
-    const existingRoom = await roomsCollection.findOne({
-      _id: new ObjectId(id),
-    });
-
-    if (!existingRoom) {
-      return res.status(404).json({
-        success: false,
-        message: "Room not found.",
-      });
-    }
-
-    if (existingRoom.ownerId.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden. You can update only your own room.",
-      });
-    }
-
-    const allowedFields = [
-      "roomName",
-      "description",
-      "image",
-      "floor",
-      "capacity",
-      "hourlyRate",
-      "amenities",
-    ];
-
-    const updateData = {};
-
-    allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        updateData[field] = req.body[field];
-      }
-    });
-
-    if (updateData.roomName) updateData.roomName = updateData.roomName.trim();
-    if (updateData.description) updateData.description = updateData.description.trim();
-    if (updateData.image) updateData.image = updateData.image.trim();
-    if (updateData.floor) updateData.floor = String(updateData.floor).trim();
-    if (updateData.capacity) updateData.capacity = Number(updateData.capacity);
-    if (updateData.hourlyRate) updateData.hourlyRate = Number(updateData.hourlyRate);
-
-    updateData.updatedAt = new Date();
-
-    const result = await roomsCollection.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: updateData }
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Room updated successfully.",
-      modifiedCount: result.modifiedCount,
-    });
-  } catch (error) {
-    console.error("Update room error:", error.message);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while updating the room.",
+      message: "Something went wrong while fetching room.",
     });
   }
 };
@@ -324,77 +141,45 @@ const updateRoom = async (req, res) => {
 const deleteRoom = async (req, res) => {
   try {
     const db = req.app.locals.db;
-    const roomsCollection = db.collection("rooms");
-    const bookingsCollection = db.collection("bookings");
-    const usersCollection = db.collection("users");
+    const roomsCollection = db.collection(roomsCollectionName);
 
+    const user = req.user;
     const { id } = req.params;
 
-    if (!isValidObjectId(id)) {
+    if (!ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
         message: "Invalid room ID.",
       });
     }
 
-    const existingRoom = await roomsCollection.findOne({
-      _id: new ObjectId(id),
-    });
+    const room = await roomsCollection.findOne({ _id: new ObjectId(id) });
 
-    if (!existingRoom) {
+    if (!room) {
       return res.status(404).json({
         success: false,
         message: "Room not found.",
       });
     }
 
-    if (existingRoom.ownerId.toString() !== req.user.id) {
+    if (room.ownerId !== user._id) {
       return res.status(403).json({
         success: false,
-        message: "Forbidden. You can delete only your own room.",
+        message: "You are not allowed to delete this room.",
       });
     }
 
-    const relatedBookings = await bookingsCollection
-      .find({
-        roomId: new ObjectId(id),
-      })
-      .project({ _id: 1 })
-      .toArray();
-
-    const relatedBookingIds = relatedBookings.map((booking) => booking._id);
-
-    if (relatedBookingIds.length > 0) {
-      await usersCollection.updateMany(
-        {},
-        {
-          $pull: {
-            bookings: {
-              $in: relatedBookingIds,
-            },
-          },
-        }
-      );
-
-      await bookingsCollection.deleteMany({
-        roomId: new ObjectId(id),
-      });
-    }
-
-    await roomsCollection.deleteOne({
-      _id: new ObjectId(id),
-    });
+    await roomsCollection.deleteOne({ _id: new ObjectId(id) });
 
     return res.status(200).json({
       success: true,
       message: "Room deleted successfully.",
     });
   } catch (error) {
-    console.error("Delete room error:", error.message);
-
+    console.error("Delete room error:", error);
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while deleting the room.",
+      message: "Something went wrong while deleting room.",
     });
   }
 };
@@ -402,9 +187,7 @@ const deleteRoom = async (req, res) => {
 module.exports = {
   addRoom,
   getAllRooms,
-  getLatestRooms,
-  getSingleRoom,
   getMyListings,
-  updateRoom,
+  getSingleRoom,
   deleteRoom,
 };
