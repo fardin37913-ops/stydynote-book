@@ -1,11 +1,15 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
+import LoadingSpinner from "../components/LoadingSpinner";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { loginUser, googleLogin } = useAuth();
+  const location = useLocation();
+  const { user, authLoading, loginUser, googleLogin } = useAuth();
+
+  const redirectPath = location.state?.from || "/";
 
   const [formData, setFormData] = useState({
     email: "",
@@ -14,6 +18,12 @@ const Login = () => {
 
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate(redirectPath, { replace: true });
+    }
+  }, [authLoading, user, navigate, redirectPath]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -42,12 +52,14 @@ const Login = () => {
 
       if (data?.success) {
         toast.success(data.message || "Login successful.");
-        navigate("/");
+        navigate(redirectPath, { replace: true });
       } else {
         toast.error(data?.message || "Login failed.");
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || "Login failed.");
+      toast.error(
+        error.response?.data?.message || error.message || "Login failed."
+      );
     } finally {
       setLoading(false);
     }
@@ -61,7 +73,7 @@ const Login = () => {
 
       if (data?.success) {
         toast.success(data.message || "Google login successful.");
-        navigate("/");
+        navigate(redirectPath, { replace: true });
       } else {
         toast.error(data?.message || "Google login failed.");
       }
@@ -76,6 +88,10 @@ const Login = () => {
       setGoogleLoading(false);
     }
   };
+
+  if (authLoading) {
+    return <LoadingSpinner text="Checking authentication..." />;
+  }
 
   return (
     <section className="max-w-md mx-auto px-4 py-16">
