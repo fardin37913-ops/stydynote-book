@@ -16,9 +16,23 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 5000;
 
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
+  "http://localhost:5176",
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );
@@ -50,17 +64,14 @@ async function run() {
     const db = client.db("studynookDB");
     app.locals.db = db;
 
-    // API routes
     app.use("/api/auth", authRoutes);
     app.use("/api/rooms", roomRoutes);
     app.use("/api/bookings", bookingRoutes);
 
-    // Root route
     app.get("/", (req, res) => {
       res.send("StudyNook server is running successfully.");
     });
 
-    // Health check route
     app.get("/health", (req, res) => {
       res.status(200).json({
         success: true,
@@ -68,7 +79,6 @@ async function run() {
       });
     });
 
-    // 404 route for unknown APIs
     app.use((req, res) => {
       res.status(404).json({
         success: false,
